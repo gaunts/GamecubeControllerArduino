@@ -52,16 +52,27 @@ void executeFixes()
 }
 
 void dashBack(){
-  if(aym<23)
+  if (analog_y_abs >= 23)
+    return;
+
+  if (analog_x_abs < 21)
   {
-    if(axm<23)buf = cycles;
-    if(buf>0){buf--; if(axm<64) gcc.xAxis = 128+ax*(axm<23);}
-  }else buf = 0;
+    buf = cycles;
+    return;
+  }
+  
+  if (buf > 0)
+  {
+    if (analog_x_abs < 64) // if > 64, no need to edit the value
+      report.xAxis = 128;
+    buf--;
+  }
 }
 
-// Turns features off or calibrates shield drop notches
+// Turns features off, sets dolphin mode or calibrates shield drop notches
 void checkInputs()
 {
+  // off
   if (report.dleft)
   {
     if (dleft_count == 0)
@@ -71,16 +82,22 @@ void checkInputs()
   }
   else
     dleft_count = 0;
+
+  // dolphin
+  cycle = 3; // 8 if dolphin
 }
 
-void loop() {
+void loop() 
+{
   if (!firstRead())
     return;
+
   report = controller.getReport();
+  initAxes();
+
   if (!off)
     executeFixes();
-   
-  initAxes();
+  
   if (!console.write(report))
   {
     delay(10);

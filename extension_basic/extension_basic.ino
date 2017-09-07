@@ -1,20 +1,26 @@
 #include "Nintendo.h"
 
 bool init_done = false;
-CGamecubeController controller(2);
-CGamecubeConsole console(3);
+CGamecubeController controller(5);
+CGamecubeConsole console(6);
 Gamecube_Report_t report;
 
-bool off = false;
 byte analog_x_abs, analog_y_abs, cstick_x_abs, cstick_y_abs, cycles;
-char analog_x, analog_y, cstick_x, cstick_y, buf;
+char analog_x, analog_y, cstick_x, cstick_y;
 
-unsigned long dleft_count = 0;
+long buf;
+long cycle;
+bool off = false;
+bool dolphin = false;
+bool hasCurrentInput = false;
 
 void setup() {
+  
+Serial.begin(9600);
   report.errlatch=0; 
   report.high1=0; 
   report.errstat=0;
+  pinMode(LED_BUILTIN, OUTPUT);
 }
 
 bool firstRead()
@@ -27,8 +33,9 @@ bool firstRead()
   if (!init_done)
   {
     init_done = true;
-    report.origin = controller.getOrigin();
+    report.origin = 0;
   }
+  return true;
 }
 
 void initAxes()
@@ -53,18 +60,24 @@ void executeFixes()
 
 void dashBack(){
   if (analog_y_abs >= 23)
+  {
     return;
+  }
 
   if (analog_x_abs < 21)
   {
-    buf = cycles;
+    //Serial.println(cycle);
+    buf = cycle;
     return;
   }
   
   if (buf > 0)
   {
-    if (analog_x_abs < 64) // if > 64, no need to edit the value
+    if (analog_x_abs < 68)// if > 97, no need to edit the value
+    {
+      //Serial.println("block");
       report.xAxis = 128;
+    }
     buf--;
   }
 }
@@ -72,28 +85,34 @@ void dashBack(){
 // Turns features off, sets dolphin mode or calibrates shield drop notches
 void checkInputs()
 {
-  // off
-  if (report.dleft)
+  if (report.ddown == 1 && report.b == 1)
   {
-    if (dleft_count == 0)
-      dleft_count = millis();
-    else if (millis() - dleft_count > 2000)
+    if (!hasCurrentInput)
       off = !off;
   }
+  else if (report.ddown == 1 && report.a == 1)
+  {
+    if (!hasCurrentInput)
+      dolphin = !dolphin;
+  }
   else
-    dleft_count = 0;
-
-  // dolphin
-  cycle = 3; // 8 if dolphin
+  {
+    hasCurrentInput = false;
+    return;    
+  }
+  hasCurrentInput = true;
 }
 
 void loop() 
 {
   if (!firstRead())
     return;
-
+  
   report = controller.getReport();
   initAxes();
+
+  checkInputs();
+  cycle = dolphin ? 8 : 2;
 
   if (!off)
     executeFixes();

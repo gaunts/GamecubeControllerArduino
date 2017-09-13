@@ -5,37 +5,27 @@ CGamecubeController controller(5);
 CGamecubeConsole console(6);
 Gamecube_Report_t report;
 
-byte analog_x_abs, analog_y_abs, cstick_x_abs, cstick_y_abs, cycles;
+byte analog_x_abs, analog_y_abs, cstick_x_abs, cstick_y_abs;
 char analog_x, analog_y, cstick_x, cstick_y;
+char x_offset = 0;
+char y_offset = 0;
 
 long buf;
 long cycle;
+
 bool off = false;
 bool dolphin = false;
+bool ucf = false;
+
 bool hasCurrentInput = false;
+bool shield = false;
+bool tiltedShield = false;
+float angle;
+
+float ang(float xval, float yval){return atan(yval/xval)*57.2958;} //function to return angle in degrees when given x and y components
+float mag(char  xval, char  yval){return sqrt(sq(xval)+sq(yval));} //function to return vector magnitude when given x and y components
 
 void setup() {
-  
-Serial.begin(9600);
-  report.errlatch=0; 
-  report.high1=0; 
-  report.errstat=0;
-  pinMode(LED_BUILTIN, OUTPUT);
-}
-
-bool firstRead()
-{
-  if (!controller.read())
-  {
-    delay(100);
-    return false;
-  }
-  if (!init_done)
-  {
-    init_done = true;
-    report.origin = 0;
-  }
-  return true;
 }
 
 void initAxes()
@@ -55,34 +45,116 @@ void initAxes()
 
 void executeFixes()
 {
-  dashBack();
+  fixOffset();
+  initAxes();
+  
+  maxVectors();
+  if (!ucf)
+  {
+    dashBack();
+    shieldDrop();    
+  }
+}
+
+void fixOffset()
+{
+  report.xAxis -= x_offset;
+  report.yAxis -= y_offset;
+}
+
+bool anyButtonActive()
+{
+  return (
+    report.a == 1 ||
+    report.b == 1 ||
+    report.x == 1 ||
+    report.y == 1 ||
+    report.r == 1 ||
+    report.l == 1 ||
+    report.right > 74 ||
+    report.left > 74 ||
+    report.z == 1 ||
+    cstick_x_abs > 50 ||
+    cstick_y_abs > 50
+    );
 }
 
 void dashBack(){
-  if (analog_y_abs >= 23)
-  {
+  if (anyButtonActive())
     return;
-  }
+    
+  if (analog_y_abs >= 23)
+    return;
 
   if (analog_x_abs < 21)
   {
-    //Serial.println(cycle);
     buf = cycle;
     return;
   }
   
   if (buf > 0)
   {
-    if (analog_x_abs < 68)// if > 97, no need to edit the value
-    {
-      //Serial.println("block");
+    if (analog_x_abs < 68)// if > 68, no need to edit the value as we are dashing anyway
       report.xAxis = 128;
-    }
     buf--;
   }
 }
 
-// Turns features off, sets dolphin mode or calibrates shield drop notches
+void maxVectors()
+{
+  bool edited = false;
+  if (analog_x_abs > 85 && analog_y_abs < 10)
+  {
+    report.xAxis = (analog_x > 0) ? 255 : 1;
+    report.yAxis = 128;
+    edited = true;
+  }
+  else if (analog_y_abs > 85 && analog_x_abs < 10)
+  {
+    report.yAxis  = (analog_y > 0) ? 255 : 1;
+    report.xAxis  = 128;
+    edited = true;
+  }
+
+  if (cstick_x_abs > 85 && cstick_y_abs < 10)
+  {
+    report.cxAxis = (cstick_x > 0) ? 255 : 1;
+    report.cyAxis = 128;
+    edited = true;
+  }
+  else if (cstick_y_abs > 85 && cstick_x_abs < 10)
+  {
+    report.cyAxis  = (cstick_y > 0) ? 255 : 1;
+    report.cxAxis  = 128;
+    edited = true;
+  }
+  if (edited == true)
+    initAxes(); // could be cleaner but fuck it
+}
+
+void shieldDrop()
+{
+  shield = report.l || report.r || report.right > 74 || report.left > 74 || report.z;
+  
+  if (shield && analog_x_abs > 120)
+    tiltedShield = true;
+  else if (shield && tiltedShield && mag(analog_x, analog_y) > 80)
+    tiltedShield = true;
+  else
+    tiltedShield = false;
+
+  if (tiltedShield)
+  {
+    angle = ang(analog_x_abs, analog_y_abs);
+    if (angle > 45 && angle < 55)
+    {
+      report.yAxis = 73;
+      report.xAxis = (analog_x > 0 ? 183 : 73);
+    }
+  }
+}
+
+// Turns features off, sets dolphin or ucf mode
 void checkInputs()
 {
   if (report.ddown == 1 && report.b == 1)
@@ -95,6 +167,11 @@ void checkInputs()
     if (!hasCurrentInput)
       dolphin = !dolphin;
   }
+  else if (report.ddown == 1 && report.y == 1)
+  {
+    if (!hasCurrentInput)
+      ucf = !ucf;
+  }
   else
   {
     hasCurrentInput = false;
@@ -105,20 +182,26 @@ void checkInputs()
 
 void loop() 
 {
-  if (!firstRead())
+  if (!controller.read())
+  {
+    init_done = false;
+    delay(100);
     return;
+  }
   
   report = controller.getReport();
-  initAxes();
+  if (!init_done)
+  {
+    x_offset = report.xAxis - 128;
+    y_offset = report.yAxis - 128;  
+    init_done = true;
+  }
 
   checkInputs();
   cycle = dolphin ? 8 : 2;
-
   if (!off)
     executeFixes();
-  
+
   if (!console.write(report))
-  {
     delay(10);
-  }
 }

@@ -60,11 +60,23 @@ void maxvectors(){
 
 void shielddrops(){
   shield = gcc.l||gcc.r||gcc.left>74||gcc.right>74||gcc.z;
-  if(shield){
-    if(ay<0&&mag(ax,ay)>75){
-      if(ax<0&&abs(ang(axm,aym)-swang)<4){gcc.yAxis = 73; gcc.xAxis =  73;}
-      if(ax>0&&abs(ang(axm,aym)-seang)<4){gcc.yAxis = 73; gcc.xAxis = 183;}
-    }else if(abs(ay+39)<17&&axm<23) gcc.yAxis = 73;
+  if(shield)
+  {
+    if (ay < 0 && mag(ax,ay) > 75)
+    {
+      if (ax < 0 && abs(ang(axm,aym) - swang) < 4)
+      {
+        gcc.yAxis = 73; 
+        gcc.xAxis =  73;
+      }
+      if (ax > 0 && abs(ang(axm,aym) - seang) < 4)
+      {
+        gcc.yAxis = 73; 
+        gcc.xAxis = 183;
+      }
+    }
+    else if (abs(ay + 39) < 17 && axm < 23)
+      gcc.yAxis = 73;
   }
 }
 

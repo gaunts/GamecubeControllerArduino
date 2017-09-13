@@ -13,11 +13,15 @@ char y_offset = 0;
 long buf;
 long cycle;
 
-bool off = false;
+bool enableFixes = true;
 bool dolphin = false;
 bool ucf = false;
 
 bool hasCurrentInput = false;
+bool featureIsTurningOn = false;
+bool featureIsTurningOff = false;
+long feedbackLoopCount = 0;
+
 bool shield = false;
 bool tiltedShield = false;
 float angle;
@@ -27,6 +31,7 @@ float mag(char  xval, char  yval){return sqrt(sq(xval)+sq(yval));} //function to
 
 void setup() {
 }
+
 
 void initAxes()
 {
@@ -154,28 +159,70 @@ void shieldDrop()
   }
 }
 
+void giveUserFeedback()
+{
+  if (featureIsTurningOn || featureIsTurningOff)
+  {
+    short frameDuration = 12; 
+    short frameCount = feedbackLoopCount / cycle;
+   
+    if (frameCount == 0 || frameCount == frameDuration * 2)
+      controller.setRumble(true);
+    else if (frameCount % frameDuration == 0)
+    {
+      controller.setRumble(false);
+      if (featureIsTurningOn)
+      {
+        featureIsTurningOn = false;
+        feedbackLoopCount = 0;
+      }
+      if (featureIsTurningOff && frameCount == frameDuration * 3)
+      {
+        featureIsTurningOff = false;
+        feedbackLoopCount = 0;
+      }
+    }
+    feedbackLoopCount++;
+  }
+}
+
+void switchFeature(bool *ptr)
+{
+  if (!hasCurrentInput && !featureIsTurningOn && !featureIsTurningOff)
+  {
+    *ptr = !(*ptr);
+    if (*ptr == true)
+      featureIsTurningOn = true;
+    else
+      featureIsTurningOff = true;
+  }
+}
+
 // Turns features off, sets dolphin or ucf mode
 void checkInputs()
 {
   if (report.ddown == 1 && report.b == 1)
   {
-    if (!hasCurrentInput)
-      off = !off;
+    //if (!hasCurrentInput)
+    //  off = !off;
+    switchFeature(&enableFixes);
   }
   else if (report.ddown == 1 && report.a == 1)
   {
-    if (!hasCurrentInput)
-      dolphin = !dolphin;
+//    if (!hasCurrentInput)
+//      dolphin = !dolphin;
+    switchFeature(&dolphin);
   }
   else if (report.ddown == 1 && report.y == 1)
   {
-    if (!hasCurrentInput)
-      ucf = !ucf;
+//    if (!hasCurrentInput)
+//      ucf = !ucf;
+    switchFeature(&ucf);
   }
   else
   {
     hasCurrentInput = false;
-    return;    
+    return;
   }
   hasCurrentInput = true;
 }
@@ -190,6 +237,7 @@ void loop()
   }
   
   report = controller.getReport();
+
   if (!init_done)
   {
     x_offset = report.xAxis - 128;
@@ -198,8 +246,10 @@ void loop()
   }
 
   checkInputs();
-  cycle = dolphin ? 8 : 2;
-  if (!off)
+  giveUserFeedback();
+  
+  cycle = dolphin ? 11 : 2;
+  if (enableFixes)
     executeFixes();
 
   if (!console.write(report))

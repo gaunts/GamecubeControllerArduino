@@ -32,7 +32,6 @@ float mag(char  xval, char  yval){return sqrt(sq(xval)+sq(yval));} //function to
 void setup() {
 }
 
-
 void initAxes()
 {
   //offsets from nuetral position of analog and c stick
@@ -50,14 +49,16 @@ void initAxes()
 
 void executeFixes()
 {
-  fixOffset();
-  initAxes();
-  
-  maxVectors();
-  if (!ucf)
+  fixOffset(); // I fix offsets even when features are turned off because I feel like it is worse than without the arduino otherwise.
+  if (executeFixes)
   {
-    dashBack();
-    shieldDrop();    
+    initAxes();
+    maxVectors();
+    if (!ucf)
+    {
+      dashBack();
+      shieldDrop();    
+    }
   }
 }
 
@@ -203,21 +204,18 @@ void checkInputs()
 {
   if (report.ddown == 1 && report.b == 1)
   {
-    //if (!hasCurrentInput)
-    //  off = !off;
     switchFeature(&enableFixes);
+    report.b = 0;
   }
   else if (report.ddown == 1 && report.a == 1)
   {
-//    if (!hasCurrentInput)
-//      dolphin = !dolphin;
     switchFeature(&dolphin);
+    report.a = 0;    
   }
   else if (report.ddown == 1 && report.y == 1)
   {
-//    if (!hasCurrentInput)
-//      ucf = !ucf;
     switchFeature(&ucf);
+    report.y = 0;    
   }
   else
   {
@@ -239,19 +237,23 @@ void loop()
   report = controller.getReport();
 
   if (!init_done)
-  {
-    x_offset = report.xAxis - 128;
-    y_offset = report.yAxis - 128;  
-    init_done = true;
-  }
+    controller.getOrigin();
 
   checkInputs();
   giveUserFeedback();
   
-  cycle = dolphin ? 11 : 2;
+  cycle = dolphin ? 8 : 2;
   if (enableFixes)
     executeFixes();
 
   if (!console.write(report))
     delay(10);
+  
+  // I feel like this works better AFTER sending data to the console at least once, but it's only a feeling. Feel free to tell me otherwise
+  if (!init_done)
+  {
+    x_offset = report.xAxis - 128;
+    y_offset = report.yAxis - 128;  
+    init_done = true;
+  }
 }

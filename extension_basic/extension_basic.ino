@@ -50,7 +50,7 @@ void initAxes()
 void executeFixes()
 {
   fixOffset(); // I fix offsets even when features are turned off because I feel like it is worse than without the arduino otherwise.
-  if (executeFixes)
+  if (enableFixes)
   {
     initAxes();
     maxVectors();
@@ -243,8 +243,7 @@ void loop()
   giveUserFeedback();
   
   cycle = dolphin ? 8 : 2;
-  if (enableFixes)
-    executeFixes();
+  executeFixes();
 
   if (!console.write(report))
     delay(10);
